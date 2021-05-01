@@ -66,7 +66,7 @@ namespace cgc
 		{
 			this->m_Ptr = other.m_Ptr;
 			this->m_CBlock = other.m_CBlock;
-			++this->m_CBlock;
+			this->m_CBlock->increment();
 		}
 		shared_ptr(shared_ptr&& other) noexcept : base_ptr<T>()
 		{
