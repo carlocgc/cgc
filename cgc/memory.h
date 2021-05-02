@@ -77,51 +77,29 @@ namespace cgc
 			other.m_ref_counter = nullptr;
 			return *this;
 		}
-	};
+	};	
 
 	template<typename T>
+	class weak_ptr<T>;
+	
+	template<typename T>
 	class shared_ptr : public base_ptr<T>
-	{
-	public:
-		template<T>
-		class weak_ptr
-		{
-			bool m_expired;
-			shared_ptr<T>* m_parent;
-		
-			explicit weak_ptr(shared_ptr<T> const& ptr) : m_expired(false), m_parent(&ptr) {}
-
-			void set_expired()
-			{
-				m_expired = true;
-				m_parent = nullptr;
-			}
-
-		public:
-			weak_ptr() : m_expired(true), m_parent(nullptr) {}
-			weak_ptr(weak_ptr<T> const& other) : m_expired(other.m_expired), m_parent(other.m_parent) {}
-			weak_ptr(weak_ptr<T>&& other) noexcept : m_expired(other.m_expired), m_parent(other.m_parent) { other.m_expired = true; other.m_parent = nullptr; }
-
-			shared_ptr<T> is_valid()
-			{
-				if (m_expired || m_parent == nullptr)
-				{
-					return shared_ptr<T>();
-				}
-
-				return shared_ptr<T>(*m_parent);
-			}			
-		};
-		
+	{	
+	public:	
 		shared_ptr() : base_ptr<T>() {}
 		explicit shared_ptr(T* ptr) : base_ptr<T>(ptr) {}
-		shared_ptr(shared_ptr const& other) : base_ptr<T>()
+		shared_ptr(shared_ptr<T> const& other) : base_ptr<T>()
 		{
+			if (this == &other)
+			{
+				return *this;
+			}
+			
 			this->m_ptr = other.m_ptr;
 			this->m_ref_counter = other.m_ref_counter;
 			this->m_ref_counter->increment();			
 		}
-		shared_ptr(shared_ptr&& other) noexcept : base_ptr<T>()
+		shared_ptr(shared_ptr<T>&& other) noexcept : base_ptr<T>()
 		{
 			this->m_ptr = other.m_ptr;
 			other.m_ptr = nullptr;
@@ -131,25 +109,83 @@ namespace cgc
 
 		~shared_ptr() override = default;
 
-		shared_ptr& operator=(shared_ptr const& other)
+		shared_ptr<T>& operator=(shared_ptr<T> const& other)
 		{
+			if (this == &other)
+			{
+				return *this;
+			}
+			
 			this->m_ptr = other.m_ptr;
 			this->m_ref_counter = other.m_ref_counter;
 			this->m_ref_counter->increment();
 			return *this;
 		}
-		shared_ptr& operator=(shared_ptr&& other) noexcept
+		shared_ptr<T>& operator=(shared_ptr<T>&& other) noexcept
 		{
 			this->m_ptr = other.m_ptr;
 			other.m_ptr = nullptr;
 			this->m_ref_counter = other.m_ref_counter;
 			other.m_ref_counter = nullptr;
 			return *this;
+		}		
+		
+		weak_ptr<T>& get_weak();
+	};
+
+	template<typename T>
+	class weak_ptr
+	{
+		bool m_expired;
+		shared_ptr<T>* m_parent;
+	
+	public:
+		weak_ptr() : m_expired(true), m_parent(nullptr) {}
+		weak_ptr(weak_ptr<T> const& other) : m_expired(other.m_expired), m_parent(other.m_parent) {}
+		weak_ptr(weak_ptr<T>&& other) noexcept : m_expired(other.m_expired), m_parent(other.m_parent) { other.m_expired = true; other.m_parent = nullptr; }
+		explicit weak_ptr(shared_ptr<T> const& ptr) : m_expired(false), m_parent(&ptr) {}
+		~weak_ptr() = default;
+
+		void set_expired()
+		{
+			m_expired = true;
+			m_parent = nullptr;
 		}
 
-		weak_ptr<T> get_weak()
+		weak_ptr<T>& operator=(weak_ptr<T> const& other)
 		{
-			return weak_ptr<T>(&this);
+			if (this == &other)
+			{
+				return *this;
+			}
+			
+			this.m_expired = other.m_expired;
+			this.m_parent = other.m_parent;
+			return *this;
+		}
+		weak_ptr<T>& operator=(weak_ptr<T>&& other) noexcept
+		{
+			m_expired = other.m_expired;
+			other.m_expired = true;
+			m_parent = other.m_parent;
+			other.m_parent = nullptr;
+			return *this;
+		}
+
+		shared_ptr<T>& is_valid()
+		{
+			if (m_expired || m_parent == nullptr)
+			{
+				return shared_ptr<T>();
+			}
+
+			return shared_ptr<T>(*m_parent);
 		}
 	};
+
+	template<class T>
+	inline weak_ptr<T>& shared_ptr<T>::get_weak()
+	{		
+		return weak_ptr<T>(*this);
+	}
 }
