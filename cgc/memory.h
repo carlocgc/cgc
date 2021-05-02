@@ -21,7 +21,7 @@ namespace cgc
 			int decrement() { return --m_Count; }
 			int increment() { return ++m_Count; }
 
-			explicit operator bool() const { return m_Count > 0; }
+			explicit operator bool() const { return m_Ptr != nullptr; }
 			ref_counter& operator=(ref_counter const&) = delete;
 			ref_counter& operator=(ref_counter&&) = delete;
 		};
@@ -55,8 +55,36 @@ namespace cgc
 	};
 
 	template<typename T>
+	class unique_ptr : public base_ptr<T>
+	{
+	public:
+		unique_ptr() : base_ptr<T>() {}
+		explicit unique_ptr(T* ptr) : base_ptr<T>(ptr) {}
+		unique_ptr(unique_ptr&& other) noexcept : base_ptr<T>()
+		{
+			this->m_Ptr = other.m_Ptr;
+			other.m_Ptr = nullptr;
+			this->m_RefCounter = other.m_RefCounter;
+			other.m_RefCounter = nullptr;
+		}
+
+		~unique_ptr() override = default;
+		
+		unique_ptr& operator=(unique_ptr&& other) noexcept
+		{
+			this->m_Ptr = other.m_Ptr;
+			other.m_Ptr = nullptr;
+			this->m_RefCounter = other.m_RefCounter;
+			other.m_RefCounter = nullptr;
+			return *this;
+		}
+	};
+	
+	template<typename T>
 	class shared_ptr : public base_ptr<T>
 	{
+		
+		
 	public:
 		shared_ptr() : base_ptr<T>() {}
 		explicit shared_ptr(T* ptr) : base_ptr<T>(ptr) {}
@@ -74,7 +102,7 @@ namespace cgc
 			other.m_RefCounter = nullptr;
 		}
 
-		virtual ~shared_ptr() override = default;
+		~shared_ptr() override = default;
 
 		shared_ptr& operator=(shared_ptr const& other)
 		{
