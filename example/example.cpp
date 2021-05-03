@@ -4,14 +4,11 @@
 
 using namespace std;
 
-struct test_struct
-{
-	
-};
+struct TestStruct {};
 
 int main()
 {
-	Cgc::SharedPtr<test_struct> sptr;
+	Cgc::SharedPtr<TestStruct> sptr;
 
 	auto wptr = sptr.GetWeak();
 
