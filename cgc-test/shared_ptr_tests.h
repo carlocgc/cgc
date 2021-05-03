@@ -1,17 +1,14 @@
 #pragma once
-#include "pch.h"
-#include "memory.h"
 
-struct TestStruct
-{
-};
+#include "gtest/gtest.h"
+#include "memory.h"
+#include "test_contexts.h"
 
 TEST(SharedPtr, DefaultConstruction)
 {
 	const Cgc::SharedPtr<TestStruct> ptr{};
 	ASSERT_FALSE(ptr) << "SharedPtr not null when default constructed";
 }
-
 TEST(SharedPtr, PointerConstruction)
 {
 	const Cgc::SharedPtr<TestStruct> ptr{ new TestStruct{} };

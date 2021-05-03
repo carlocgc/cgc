@@ -8,7 +8,7 @@ namespace Cgc
 	class IWeakReference
 	{
 	public:
-		virtual ~IWeakReference() {};
+		virtual ~IWeakReference() = default;
 		virtual void SetExpired() = 0;
 	};
 
@@ -138,7 +138,7 @@ namespace Cgc
 		explicit SharedPtr(T* ptr) : BasePtr<T>(ptr) {}
 		SharedPtr(SharedPtr<T> const& other) : BasePtr<T>()
 		{
-			if (this == &other) return *this;
+			if (this == &other) return;
 			this->m_Ptr = other.m_Ptr;
 			this->m_RefManager = other.m_RefManager;
 			if (this->m_RefManager && this->m_Ptr)
