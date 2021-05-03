@@ -1,181 +1,260 @@
 #pragma once
+#include <set>
 #include "type_traits.h"
 
-namespace cgc
+namespace Cgc
 {
-	class ref_counter : private non_copyable
+	template<typename T>
+	class SharedPtr<T>;
+
+	template<typename T>
+	class IWeakReference
 	{
-		int m_count;
-
 	public:
-		ref_counter() : m_count(1) {}
-		ref_counter(ref_counter const&) = delete;
-		ref_counter(ref_counter&&) = delete;
-		~ref_counter() = default;
-
-		int get_count() const { return m_count; }
-		int decrement() { return --m_count; }
-		int increment() { return ++m_count; }
-
-		ref_counter& operator=(ref_counter const&) = delete;
-		ref_counter& operator=(ref_counter&&) = delete;
+		virtual ~IWeakReference() = 0;
+		virtual void SetExpired() = 0;
+		virtual SharedPtr<T>& IsValid() = 0;
 	};
 
 	template<typename T>
-	class base_ptr
+	class RefManager : private NonCopyable
+	{
+		int m_StrongCount;
+		std::set<IWeakReference<T>*> m_WeakReferences;
+
+		void Expire()
+		{
+			// TODO not thread safe
+			for (auto weak_reference : m_WeakReferences)
+			{
+				weak_reference->SetExpired();
+			}
+		}
+
+	public:
+		RefManager() : m_StrongCount(1) {}
+		RefManager(RefManager const&) = delete;
+		RefManager(RefManager&&) = delete;
+		~RefManager()
+		{
+			Expire();
+		}
+
+		void AddWeak(IWeakReference<T>* ptr)
+		{
+			// TODO not thread safe
+			m_WeakReferences.insert(ptr);
+		}
+		void RemoveWeak(IWeakReference<T>* ptr)
+		{
+			// TODO not thread safe
+			m_WeakReferences.erase(ptr);
+		}
+
+		int GetCount() const { return m_StrongCount; }
+		int Increment() { return ++m_StrongCount; }
+		int Decrement()
+		{
+			if (--m_StrongCount <= 0)
+			{
+				Expire();
+			}
+			return m_StrongCount;
+		}
+
+		RefManager& operator=(RefManager const&) = delete;
+		RefManager& operator=(RefManager&&) = delete;
+	};
+
+	template<typename T>
+	class BasePtr
 	{
 	protected:
-		T* m_ptr;
-		ref_counter* m_ref_counter;
+		T* m_Ptr;
+		RefManager<T>* m_RefCounter;
 
-		base_ptr() : m_ptr(nullptr), m_ref_counter(nullptr) {}
-		explicit base_ptr(T* ptr) : m_ptr(ptr), m_ref_counter(new ref_counter{}) {}
-		virtual ~base_ptr()
+		BasePtr() : m_Ptr(nullptr), m_RefCounter(nullptr) {}
+		explicit BasePtr(T* ptr) : m_Ptr(ptr), m_RefCounter(new RefManager<T>{}) {}
+		BasePtr(T* ptr, RefManager<T> ref_manager) : m_Ptr(ptr), m_RefCounter(ref_manager) {}
+		virtual ~BasePtr()
 		{
-			if (m_ref_counter && m_ref_counter->decrement() <= 0)
+			if (m_RefCounter && m_RefCounter->Decrement() <= 0)
 			{
-				delete m_ptr;
-				delete m_ref_counter;
+				delete m_Ptr;
+				delete m_RefCounter;
 			}
 
-			m_ptr = nullptr;
-			m_ref_counter = nullptr;
+			m_Ptr = nullptr;
+			m_RefCounter = nullptr;
 		}
 
 	public:
-		base_ptr(base_ptr const&) = delete;
-		base_ptr(base_ptr&&) = delete;
+		BasePtr(BasePtr const&) = delete;
+		BasePtr(BasePtr&&) = delete;
 
-		explicit operator bool() const { return m_ptr != nullptr; }
-		bool operator==(base_ptr const& other) { return m_ptr == other.m_ptr; }
-		bool operator!=(base_ptr const& other) { return m_ptr != other.m_ptr; }
-		base_ptr& operator=(base_ptr const&) = delete;
-		base_ptr& operator=(base_ptr&&) = delete;
+		explicit operator bool() const { return m_Ptr != nullptr; }
+		bool operator==(BasePtr const& other) { return m_Ptr == other.m_Ptr; }
+		bool operator!=(BasePtr const& other) { return m_Ptr != other.m_Ptr; }
+		BasePtr& operator=(BasePtr const&) = delete;
+		BasePtr& operator=(BasePtr&&) = delete;
 	};
 
 	template<typename T>
-	class unique_ptr : public base_ptr<T>
+	class UniquePtr final : public BasePtr<T>
 	{
 	public:
-		unique_ptr() : base_ptr<T>() {}
-		explicit unique_ptr(T* ptr) : base_ptr<T>(ptr) {}
-		unique_ptr(unique_ptr const& other) = delete;
-		unique_ptr(unique_ptr&& other) noexcept : base_ptr<T>()
+		UniquePtr() : BasePtr<T>() {}
+		explicit UniquePtr(T* ptr) : BasePtr<T>(ptr) {}
+		UniquePtr(UniquePtr const& other) = delete;
+		UniquePtr(UniquePtr&& other) noexcept : BasePtr<T>()
 		{
-			this->m_ptr = other.m_ptr;
-			other.m_ptr = nullptr;
-			this->m_ref_counter = other.m_ref_counter;
-			other.m_ref_counter = nullptr;
+			this->m_Ptr = other.m_Ptr;
+			other.m_Ptr = nullptr;
+			this->m_RefCounter = other.m_RefCounter;
+			other.m_RefCounter = nullptr;
 		}
 
-		~unique_ptr() override = default;
+		~UniquePtr() override = default;
 
-		unique_ptr& operator=(unique_ptr const&) = delete;
-		unique_ptr& operator=(unique_ptr&& other) noexcept
+		UniquePtr& operator=(UniquePtr const&) = delete;
+		UniquePtr& operator=(UniquePtr&& other) noexcept
 		{
-			this->m_ptr = other.m_ptr;
-			other.m_ptr = nullptr;
-			this->m_ref_counter = other.m_ref_counter;
-			other.m_ref_counter = nullptr;
+			this->m_Ptr = other.m_Ptr;
+			other.m_Ptr = nullptr;
+			this->m_RefCounter = other.m_RefCounter;
+			other.m_RefCounter = nullptr;
 			return *this;
 		}
 	};
 
 	template<typename T>
-	class weak_ptr<T>;
+	class WeakPtr<T>;
 
 	template<typename T>
-	class shared_ptr : public base_ptr<T>
+	class SharedPtr final : public BasePtr<T>
 	{
 	public:
-		shared_ptr() : base_ptr<T>() {}
-		explicit shared_ptr(T* ptr) : base_ptr<T>(ptr) {}
-		shared_ptr(shared_ptr<T> const& other) : base_ptr<T>()
+		SharedPtr() : BasePtr<T>() {}
+		explicit SharedPtr(T* ptr) : BasePtr<T>(ptr) {}
+		SharedPtr(SharedPtr<T> const& other) : BasePtr<T>()
 		{
 			if (this == &other) return *this;
-			this->m_ptr = other.m_ptr;
-			this->m_ref_counter = other.m_ref_counter;
-			this->m_ref_counter->increment();
+			this->m_Ptr = other.m_Ptr;
+			this->m_RefCounter = other.m_RefCounter;
+			this->m_RefCounter->Increment();
 		}
-		shared_ptr(shared_ptr<T>&& other) noexcept : base_ptr<T>()
+		SharedPtr(SharedPtr<T>&& other) noexcept : BasePtr<T>(other.m_Ptr, other.m_RefCounter)
 		{
-			this->m_ptr = other.m_ptr;
-			other.m_ptr = nullptr;
-			this->m_ref_counter = other.m_ref_counter;
-			other.m_ref_counter = nullptr;
+			other.m_Ptr = nullptr;			
+			other.m_RefCounter = nullptr;
 		}
-
-		~shared_ptr() override = default;
-
-		shared_ptr<T>& operator=(shared_ptr<T> const& other)
+		SharedPtr(T* ptr, RefManager<T>* ref_manager) : BasePtr<T>(ptr, ref_manager)
 		{
-			if (this == &other) return *this;
-			this->m_ptr = other.m_ptr;
-			this->m_ref_counter = other.m_ref_counter;
-			this->m_ref_counter->increment();
-			return *this;
-		}
-		shared_ptr<T>& operator=(shared_ptr<T>&& other) noexcept
-		{
-			this->m_ptr = other.m_ptr;
-			other.m_ptr = nullptr;
-			this->m_ref_counter = other.m_ref_counter;
-			other.m_ref_counter = nullptr;
-			return *this;
-		}
-
-		weak_ptr<T>& get_weak();
-	};
-
-	template<typename T>
-	class weak_ptr
-	{
-		bool m_expired;
-		shared_ptr<T>* m_parent;
-
-	public:
-		weak_ptr() : m_expired(true), m_parent(nullptr) {}
-		weak_ptr(weak_ptr<T> const& other) : m_expired(other.m_expired), m_parent(other.m_parent) {}
-		weak_ptr(weak_ptr<T>&& other) noexcept : m_expired(other.m_expired), m_parent(other.m_parent) { other.m_expired = true; other.m_parent = nullptr; }
-		explicit weak_ptr(shared_ptr<T> const& ptr) : m_expired(false), m_parent(&ptr) {}
-		~weak_ptr() = default;
-
-		weak_ptr<T>& operator=(weak_ptr<T> const& other)
-		{
-			if (this == &other) return *this;
-			this.m_expired = other.m_expired;
-			this.m_parent = other.m_parent;
-			return *this;
-		}
-		weak_ptr<T>& operator=(weak_ptr<T>&& other) noexcept
-		{
-			m_expired = other.m_expired;
-			other.m_expired = true;
-			m_parent = other.m_parent;
-			other.m_parent = nullptr;
-			return *this;
-		}
-
-		void set_expired()
-		{
-			m_expired = true;
-			m_parent = nullptr;
-		}
-
-		shared_ptr<T>& is_valid()
-		{
-			if (m_expired || m_parent == nullptr)
+			if (this->m_RefCounter)
 			{
-				return shared_ptr<T>();
+				this->m_RefCounter->Increment();
+			}
+		}
+
+		~SharedPtr() override = default;
+
+		SharedPtr<T>& operator=(SharedPtr<T> const& other)
+		{
+			if (this == &other) return *this;
+			this->m_Ptr = other.m_Ptr;
+			this->m_RefCounter = other.m_RefCounter;
+			this->m_RefCounter->Increment();
+			return *this;
+		}
+		SharedPtr<T>& operator=(SharedPtr<T>&& other) noexcept
+		{
+			this->m_Ptr = other.m_Ptr;
+			other.m_Ptr = nullptr;
+			this->m_RefCounter = other.m_RefCounter;
+			other.m_RefCounter = nullptr;
+			return *this;
+		}
+
+		WeakPtr<T>& GetWeak()
+		{
+			WeakPtr<T> weak;
+
+			return weak;
+		}
+	};
+
+	template<typename T>
+	class WeakPtr final : IWeakReference<T>
+	{
+		friend SharedPtr<T>;
+		bool m_Expired;
+		RefManager<T>* m_RefCounter;
+		T* m_Ptr;
+
+	public:
+		WeakPtr() : m_Expired(true), m_RefCounter(nullptr), m_Ptr(nullptr) {}
+		WeakPtr(WeakPtr<T> const& other) : m_Expired(other.m_Expired), m_RefCounter(other.m_RefCounter), m_Ptr(other.m_Ptr)
+		{
+			if (!m_Expired && m_RefCounter)
+			{
+				m_RefCounter->AddWeak(this);
+			}
+		}
+		WeakPtr(WeakPtr<T>&& other) noexcept : m_Expired(other.m_Expired), m_RefCounter(other.m_RefCounter), m_Ptr(other.m_Ptr)
+		{
+			if (!m_Expired && m_RefCounter)
+			{
+				m_RefCounter->RemoveWeak(&other);
+				m_RefCounter->AddWeak(this);
+			}
+			other.m_Expired = true;
+			other.m_RefCounter = nullptr;
+		}
+		explicit WeakPtr(SharedPtr<T> const& ptr) : m_Expired(false), m_RefCounter(ptr.m_RefCounter), m_Ptr(ptr.m_Ptr)
+		{
+			if (m_RefCounter)
+			{
+				m_RefCounter->AddWeak(this);
+			}
+		}
+		~WeakPtr()
+		{
+			if (!m_Expired && m_RefCounter)
+			{
+				m_RefCounter->RemoveWeak(this);
+			}
+		}
+
+		WeakPtr<T>& operator=(WeakPtr<T> const& other)
+		{
+			if (this == &other) return *this;
+			this.m_Expired = other.m_Expired;
+			this->m_RefCounter = other.m_RefCounter;
+			return *this;
+		}
+		WeakPtr<T>& operator=(WeakPtr<T>&& other) noexcept
+		{
+			m_Expired = other.m_Expired;
+			other.m_Expired = true;
+			m_RefCounter = other.m_RefCounter;
+			other.m_RefCounter = nullptr;
+			return *this;
+		}
+
+		void SetExpired() override
+		{
+			m_Expired = true;
+			m_RefCounter = nullptr;
+		}
+
+		SharedPtr<T>& IsValid() override
+		{
+			if (m_Expired || !m_RefCounter)
+			{
+				return SharedPtr<T>();
 			}
 
-			return shared_ptr<T>(*m_parent);
+			return SharedPtr<T>(m_Ptr, m_RefCounter);
 		}
 	};
-
-	template<class T>
-	inline weak_ptr<T>& shared_ptr<T>::get_weak()
-	{
-		return weak_ptr<T>(*this);
-	}
 }

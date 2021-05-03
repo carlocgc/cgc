@@ -1,11 +1,11 @@
 #pragma once
 
-namespace cgc
+namespace Cgc
 {	
-	struct non_copyable
+	struct NonCopyable
 	{
-		non_copyable() = default;
-		non_copyable(non_copyable const&) = delete;
-		non_copyable& operator = (non_copyable const&) = delete;
+		NonCopyable() = default;
+		NonCopyable(NonCopyable const&) = delete;
+		NonCopyable& operator = (NonCopyable const&) = delete;
 	};	
 }
