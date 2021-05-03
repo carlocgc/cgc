@@ -5,15 +5,11 @@
 namespace Cgc
 {
 	template<typename T>
-	class SharedPtr<T>;
-
-	template<typename T>
 	class IWeakReference
 	{
 	public:
 		virtual ~IWeakReference() = 0;
 		virtual void SetExpired() = 0;
-		virtual SharedPtr<T>& IsValid() = 0;
 	};
 
 	template<typename T>
@@ -127,8 +123,8 @@ namespace Cgc
 		}
 	};
 
-	template<typename T>
-	class WeakPtr<T>;
+	template<typename>
+	class WeakPtr;
 
 	template<typename T>
 	class SharedPtr final : public BasePtr<T>
@@ -141,16 +137,19 @@ namespace Cgc
 			if (this == &other) return *this;
 			this->m_Ptr = other.m_Ptr;
 			this->m_RefCounter = other.m_RefCounter;
-			this->m_RefCounter->Increment();
+			if (this->m_RefCounter && this->m_Ptr)
+			{
+				this->m_RefCounter->Increment();
+			}
 		}
 		SharedPtr(SharedPtr<T>&& other) noexcept : BasePtr<T>(other.m_Ptr, other.m_RefCounter)
 		{
-			other.m_Ptr = nullptr;			
+			other.m_Ptr = nullptr;
 			other.m_RefCounter = nullptr;
 		}
 		SharedPtr(T* ptr, RefManager<T>* ref_manager) : BasePtr<T>(ptr, ref_manager)
 		{
-			if (this->m_RefCounter)
+			if (this->m_RefCounter && this->m_Ptr)
 			{
 				this->m_RefCounter->Increment();
 			}
@@ -163,7 +162,10 @@ namespace Cgc
 			if (this == &other) return *this;
 			this->m_Ptr = other.m_Ptr;
 			this->m_RefCounter = other.m_RefCounter;
-			this->m_RefCounter->Increment();
+			if (this->m_RefCounter && this->m_Ptr)
+			{
+				this->m_RefCounter->Increment();
+			}
 			return *this;
 		}
 		SharedPtr<T>& operator=(SharedPtr<T>&& other) noexcept
@@ -177,9 +179,7 @@ namespace Cgc
 
 		WeakPtr<T>& GetWeak()
 		{
-			WeakPtr<T> weak;
-
-			return weak;
+			return WeakPtr<T>(this);
 		}
 	};
 
@@ -195,7 +195,7 @@ namespace Cgc
 		WeakPtr() : m_Expired(true), m_RefCounter(nullptr), m_Ptr(nullptr) {}
 		WeakPtr(WeakPtr<T> const& other) : m_Expired(other.m_Expired), m_RefCounter(other.m_RefCounter), m_Ptr(other.m_Ptr)
 		{
-			if (!m_Expired && m_RefCounter)
+			if (!m_Expired && m_RefCounter && m_Ptr)
 			{
 				m_RefCounter->AddWeak(this);
 			}
@@ -205,19 +205,24 @@ namespace Cgc
 			if (!m_Expired && m_RefCounter)
 			{
 				m_RefCounter->RemoveWeak(&other);
-				m_RefCounter->AddWeak(this);
+
+				if (m_Ptr)
+				{
+					m_RefCounter->AddWeak(this);
+				}
 			}
 			other.m_Expired = true;
 			other.m_RefCounter = nullptr;
+			other.m_Ptr = nullptr;
 		}
-		explicit WeakPtr(SharedPtr<T> const& ptr) : m_Expired(false), m_RefCounter(ptr.m_RefCounter), m_Ptr(ptr.m_Ptr)
+		explicit WeakPtr(SharedPtr<T> const& sptr) : m_Expired(sptr.m_Ptr != nullptr), m_RefCounter(sptr.m_RefCounter), m_Ptr(sptr.m_Ptr)
 		{
-			if (m_RefCounter)
+			if (!m_Expired && m_RefCounter && m_Ptr)
 			{
 				m_RefCounter->AddWeak(this);
 			}
 		}
-		~WeakPtr()
+		~WeakPtr() override
 		{
 			if (!m_Expired && m_RefCounter)
 			{
@@ -228,8 +233,13 @@ namespace Cgc
 		WeakPtr<T>& operator=(WeakPtr<T> const& other)
 		{
 			if (this == &other) return *this;
-			this.m_Expired = other.m_Expired;
-			this->m_RefCounter = other.m_RefCounter;
+			m_Expired = other.m_Expired;
+			m_RefCounter = other.m_RefCounter;
+			m_Ptr = other.m_Ptr;
+			if (m_RefCounter && m_Ptr)
+			{
+				m_RefCounter->AddWeak(this);
+			}
 			return *this;
 		}
 		WeakPtr<T>& operator=(WeakPtr<T>&& other) noexcept
@@ -238,6 +248,17 @@ namespace Cgc
 			other.m_Expired = true;
 			m_RefCounter = other.m_RefCounter;
 			other.m_RefCounter = nullptr;
+			m_Ptr = other.m_Ptr;
+			other.m_Ptr = nullptr;
+			if (m_RefCounter)
+			{
+				m_RefCounter->RemoveWeak(&other);
+
+				if (m_Ptr)
+				{
+					m_RefCounter->AddWeak(this);
+				}
+			}
 			return *this;
 		}
 
@@ -245,16 +266,17 @@ namespace Cgc
 		{
 			m_Expired = true;
 			m_RefCounter = nullptr;
+			m_Ptr = nullptr;
 		}
 
-		SharedPtr<T>& IsValid() override
+		SharedPtr<T>& TryLock()
 		{
-			if (m_Expired || !m_RefCounter)
+			if (m_Expired || !m_RefCounter || !m_Ptr)
 			{
-				return SharedPtr<T>();
+				return SharedPtr<T>{};
 			}
 
-			return SharedPtr<T>(m_Ptr, m_RefCounter);
+			return SharedPtr<T>{m_Ptr, m_RefCounter};
 		}
 	};
 }

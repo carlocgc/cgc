@@ -1,4 +1,8 @@
+#include <iostream>
+
 #include "memory.h"
+
+using namespace std;
 
 struct test_struct
 {
@@ -7,9 +11,18 @@ struct test_struct
 
 int main()
 {
-	Cgc::UniquePtr<test_struct> ptr{ new test_struct{} };
+	Cgc::SharedPtr<test_struct> sptr;
 
-	Cgc::UniquePtr<test_struct> ptr_b{ Cgc::UniquePtr<test_struct>{ new test_struct{} } };
+	auto wptr = sptr.GetWeak();
+
+	if (wptr.TryLock())
+	{
+		cout << "wptr is valid" << endl;
+	}
+	else
+	{
+		cout << "wptr is invalid" << endl;
+	}
 	
 	return 0;	
 }
