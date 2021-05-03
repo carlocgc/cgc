@@ -12,10 +12,10 @@ int main()
 
 	auto wptr = sptr_a.GetWeak();
 
-	if (auto sptr = wptr.TryLock())
+	if (auto sptr_b = wptr.TryLock())
 	{
 		cout << "wptr is valid" << endl;
-		// Do something with sptr here while lifetime is extended
+		// Do something with sptr_b here while lifetime is extended
 	}
 	else
 	{
