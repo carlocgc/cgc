@@ -8,13 +8,14 @@ struct TestStruct {};
 
 int main()
 {
-	Cgc::SharedPtr<TestStruct> sptr;
+	Cgc::SharedPtr<TestStruct> sptr_a{new TestStruct{}};
 
-	auto wptr = sptr.GetWeak();
+	auto wptr = sptr_a.GetWeak();
 
-	if (wptr.TryLock())
+	if (auto sptr = wptr.TryLock())
 	{
 		cout << "wptr is valid" << endl;
+		// Do something with sptr here while lifetime is extended
 	}
 	else
 	{
