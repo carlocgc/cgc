@@ -32,3 +32,21 @@ TEST(SharedPtr, CopyConstruction)
 	Cgc::SharedPtr<TestStruct> ptr_b{ ptr };
 	ASSERT_TRUE(ptr_b) << "SharedPtr not valid when copy constructed";	
 }
+
+TEST(SharedPtr, GetWeakIsNull)
+{
+	Cgc::SharedPtr<TestStruct> sptr{};
+
+	auto wptr = sptr.GetWeak();
+
+	ASSERT_FALSE(wptr.TryLock());
+}
+
+TEST(SharedPtr, GetWeakNotNull)
+{
+	Cgc::SharedPtr<TestStruct> sptr{ new TestStruct() };
+
+	auto wptr = sptr.GetWeak();
+
+	ASSERT_TRUE(wptr.TryLock());
+}
