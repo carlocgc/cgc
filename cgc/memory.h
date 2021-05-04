@@ -132,7 +132,7 @@ namespace Cgc
 		friend class WeakPtr<T>;
 		T* GetPtr() const { return this->m_Ptr; }
 		RefManager<T>* GetRefManager() const { return this->m_RefManager; }
-	
+
 	public:
 		SharedPtr() : BasePtr<T>() {}
 		explicit SharedPtr(T* ptr) : BasePtr<T>(ptr) {}
@@ -199,36 +199,31 @@ namespace Cgc
 
 		WeakPtr(WeakPtr<T> const& other) : m_Expired(other.m_Expired), m_RefCounter(other.m_RefCounter), m_Ptr(other.m_Ptr)
 		{
-			if (!m_Expired && m_RefCounter && m_Ptr)
+			if (m_RefCounter && !m_Expired)
 			{
 				m_RefCounter->AddWeak(this);
 			}
 		}
 		WeakPtr(WeakPtr<T>&& other) noexcept : m_Expired(other.m_Expired), m_RefCounter(other.m_RefCounter), m_Ptr(other.m_Ptr)
-		{
-			if (!m_Expired && m_RefCounter)
-			{
-				m_RefCounter->RemoveWeak(&other);
-
-				if (m_Ptr)
-				{
-					m_RefCounter->AddWeak(this);
-				}
-			}
+		{			
 			other.m_Expired = true;
 			other.m_RefCounter = nullptr;
 			other.m_Ptr = nullptr;
+			if (m_RefCounter && !m_Expired)
+			{
+				m_RefCounter->AddWeak(this);
+			}
 		}
-		WeakPtr(SharedPtr<T> const& sptr) : m_Expired(sptr.GetPtr() == nullptr), m_RefCounter(sptr.GetRefManager()), m_Ptr(sptr.GetPtr())
+		explicit WeakPtr(SharedPtr<T> const& sptr) : m_Expired(sptr.GetPtr() == nullptr), m_RefCounter(sptr.GetRefManager()), m_Ptr(sptr.GetPtr())
 		{
-			if (!m_Expired && m_RefCounter && m_Ptr)
+			if (m_RefCounter && !m_Expired)
 			{
 				m_RefCounter->AddWeak(this);
 			}
 		}
 		~WeakPtr() override
 		{
-			if (!m_Expired && m_RefCounter)
+			if (m_RefCounter)
 			{
 				m_RefCounter->RemoveWeak(this);
 			}
@@ -240,7 +235,7 @@ namespace Cgc
 			m_Expired = other.m_Expired;
 			m_RefCounter = other.m_RefCounter;
 			m_Ptr = other.m_Ptr;
-			if (m_RefCounter && m_Ptr)
+			if (m_RefCounter && !m_Expired)
 			{
 				m_RefCounter->AddWeak(this);
 			}
@@ -254,14 +249,9 @@ namespace Cgc
 			other.m_RefCounter = nullptr;
 			m_Ptr = other.m_Ptr;
 			other.m_Ptr = nullptr;
-			if (m_RefCounter)
+			if (m_RefCounter && !m_Expired)
 			{
-				m_RefCounter->RemoveWeak(&other);
-
-				if (m_Ptr)
-				{
-					m_RefCounter->AddWeak(this);
-				}
+				m_RefCounter->AddWeak(this);
 			}
 			return *this;
 		}
@@ -275,7 +265,7 @@ namespace Cgc
 
 		SharedPtr<T> TryLock()
 		{
-			if (m_Expired || !m_RefCounter || !m_Ptr)
+			if (m_Expired)
 			{
 				return SharedPtr<T>{};
 			}
