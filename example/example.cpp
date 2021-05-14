@@ -1,26 +1,21 @@
 #include <iostream>
-
 #include "memory.h"
 
-using namespace std;
 
-struct TestStruct {};
+const char* GetString()
+{
+	char buffer[128];
+
+	sprintf_s(buffer, 128, "%s%s", "Hello", "World");
+	
+	return buffer;
+}
 
 int main()
 {
-	Cgc::SharedPtr<TestStruct> sptr_a{new TestStruct{}};
+	const char* string = GetString();
 
-	auto wptr = sptr_a.GetWeak();
+	std::cout << string << std::endl;
 
-	if (auto sptr_b = wptr.TryLock())
-	{
-		cout << "wptr is valid" << endl;
-		// Do something with sptr_b here while lifetime is extended
-	}
-	else
-	{
-		cout << "wptr is invalid" << endl;
-	}
-	
-	return 0;	
+	return 0;
 }
