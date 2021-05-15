@@ -2,247 +2,247 @@
 #include <set>
 #include "type_traits.h"
 
-namespace Cgc
-{
+namespace cgc
+{	
 	template<typename T>
-	class RefManager : NonCopyable, NonMovable
+	class ref_manager : public non_copyable, public non_movable
 	{
-		T* m_Ptr;
-		int m_StrongCount;
-		int m_WeakCount;
+		T* m_ptr;
+		int m_strong_count;
+		int m_weak_count;
 
 	public:
-		explicit RefManager(T* ptr) : m_Ptr(ptr), m_StrongCount(1), m_WeakCount(0) {}
-		~RefManager()
+		explicit ref_manager(T* ptr) : m_ptr(ptr), m_strong_count(1), m_weak_count(0) {}
+		~ref_manager()
 		{
-			Destroy();
+			destroy();
 		}
 
-		void AddStrong()
+		void add_strong()
 		{
-			++m_StrongCount;
+			++m_strong_count;
 		}
-		void RemoveStrong()
+		void remove_strong()
 		{
-			--m_StrongCount;
-			if (m_StrongCount <= 0)
+			--m_strong_count;
+			if (m_strong_count <= 0)
 			{
-				Destroy();
+				destroy();
 			}
 		}
-		void AddWeak()
+		void add_weak()
 		{
-			++m_WeakCount;
+			++m_weak_count;
 		}
-		void RemoveWeak()
+		void remove_weak()
 		{
-			--m_WeakCount;
+			--m_weak_count;
 		}
-		bool IsValid()
+		bool is_valid()
 		{
-			return m_Ptr != nullptr;
+			return m_ptr != nullptr;
 		}
-		T* GetPtr()
+		T* get_ptr()
 		{
-			return m_Ptr;
+			return m_ptr;
 		}
-		int GetStrongCount() const
+		int get_strong_count() const
 		{
-			return m_StrongCount;
+			return m_strong_count;
 		}
-		int GetWeakCount() const
+		int get_weak_count() const
 		{
-			return m_WeakCount;
+			return m_weak_count;
 		}
-		void Destroy()
+		void destroy()
 		{
-			if (m_Ptr != nullptr)
+			if (m_ptr != nullptr)
 			{
-				delete m_Ptr; // TODO use custom deleter
-				m_Ptr = nullptr;
+				delete m_ptr; // TODO use custom deleter
+				m_ptr = nullptr;
 			}
 		}
 	};
 
 	template<typename T>
-	class BasePtr : NonCopyable, NonMovable
+	class base_ptr : non_copyable, non_movable
 	{
 	protected:
-		RefManager<T>* m_RefManager;
+		ref_manager<T>* m_ref_manager;
 
-		BasePtr() : m_RefManager(nullptr) {}
-		explicit BasePtr(T* ptr) : m_RefManager(new RefManager<T>{ ptr }) {}
-		explicit BasePtr(RefManager<T>* ref_manager) : m_RefManager(ref_manager) {}
-		virtual ~BasePtr()
+		base_ptr() : m_ref_manager(nullptr) {}
+		explicit base_ptr(T* ptr) : m_ref_manager(new ref_manager<T>{ ptr }) {}
+		explicit base_ptr(ref_manager<T>* ref_manager) : m_ref_manager(ref_manager) {}
+		virtual ~base_ptr()
 		{
-			if (m_RefManager && this->m_RefManager->GetStrongCount() <= 0 && this->m_RefManager->GetWeakCount() <= 0)
+			if (m_ref_manager && this->m_ref_manager->get_strong_count() <= 0 && this->m_ref_manager->get_weak_count() <= 0)
 			{
-				delete this->m_RefManager;
+				delete this->m_ref_manager;
 			}
 		}
 
 	public:
-		explicit operator bool() const { return m_RefManager && m_RefManager->IsValid(); }
-		bool operator==(BasePtr const& other) { return m_RefManager == other.m_RefManager; }
-		bool operator!=(BasePtr const& other) { return m_RefManager != other.m_RefManager; }
+		explicit operator bool() const { return m_ref_manager && m_ref_manager->is_valid(); }
+		bool operator==(base_ptr const& other) { return m_ref_manager == other.m_ref_manager; }
+		bool operator!=(base_ptr const& other) { return m_ref_manager != other.m_ref_manager; }
 	};
 
 	template<typename T>
-	class UniquePtr final : public BasePtr<T>
+	class unique_ptr final : public base_ptr<T>
 	{
 	public:
-		UniquePtr() : BasePtr<T>() {}
-		explicit UniquePtr(T* ptr) : BasePtr<T>(ptr) {}
-		UniquePtr(UniquePtr&& other) noexcept : BasePtr<T>()
+		unique_ptr() : base_ptr<T>() {}
+		explicit unique_ptr(T* ptr) : base_ptr<T>(ptr) {}
+		unique_ptr(unique_ptr&& other) noexcept : base_ptr<T>()
 		{
-			this->m_RefManager = other.m_RefManager;
-			other.m_RefManager = nullptr;
+			this->m_ref_manager = other.m_ref_manager;
+			other.m_ref_manager = nullptr;
 		}
-		~UniquePtr() override
+		~unique_ptr() override
 		{
-			if (this->m_RefManager)
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->RemoveStrong();
+				this->m_ref_manager->remove_strong();
 			}
 		}
 
-		UniquePtr& operator=(UniquePtr&& other) noexcept
+		unique_ptr& operator=(unique_ptr&& other) noexcept
 		{
-			this->m_RefManager = other.m_RefManager;
-			other.m_RefManager = nullptr;
+			this->m_ref_manager = other.m_ref_manager;
+			other.m_ref_manager = nullptr;
 			return *this;
 		}
 	};
 
 	template<typename>
-	class WeakPtr;
+	class weak_ptr;
 
 	template<typename T>
-	class SharedPtr final : public BasePtr<T>
+	class shared_ptr final : public base_ptr<T>
 	{
-		friend class WeakPtr<T>;
+		friend class weak_ptr<T>;
 
 	public:
-		SharedPtr() : BasePtr<T>() {}
-		explicit SharedPtr(T* ptr) : BasePtr<T>(ptr) {}
-		SharedPtr(SharedPtr<T> const& other) : BasePtr<T>()
+		shared_ptr() : base_ptr<T>() {}
+		explicit shared_ptr(T* ptr) : base_ptr<T>(ptr) {}
+		shared_ptr(shared_ptr<T> const& other) : base_ptr<T>()
 		{
 			if (this == &other) return;
-			this->m_RefManager = other.m_RefManager;
-			if (this->m_RefManager)
+			this->m_ref_manager = other.m_ref_manager;
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddStrong();
+				this->m_ref_manager->add_strong();
 			}
 		}
-		SharedPtr(SharedPtr<T>&& other) noexcept : BasePtr<T>()
+		shared_ptr(shared_ptr<T>&& other) noexcept : base_ptr<T>()
 		{
-			this->m_RefManager = other.m_RefManager;
-			other.m_RefManager = nullptr;
+			this->m_ref_manager = other.m_ref_manager;
+			other.m_ref_manager = nullptr;
 		}
-		SharedPtr(RefManager<T>* ref_manager) : BasePtr<T>(ref_manager)
+		shared_ptr(ref_manager<T>* ref_manager) : base_ptr<T>(ref_manager)
 		{
-			if (this->m_RefManager)
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddStrong();
-			}
-		}
-
-		~SharedPtr() override
-		{
-			if (this->m_RefManager)
-			{
-				this->m_RefManager->RemoveStrong();
+				this->m_ref_manager->add_strong();
 			}
 		}
 
-		SharedPtr<T>& operator=(SharedPtr<T> const& other)
+		~shared_ptr() override
+		{
+			if (this->m_ref_manager)
+			{
+				this->m_ref_manager->remove_strong();
+			}
+		}
+
+		shared_ptr<T>& operator=(shared_ptr<T> const& other)
 		{
 			if (this == &other) return *this;
-			this->m_RefManager = other.m_RefManager;
-			if (this->m_RefManager)
+			this->m_ref_manager = other.m_ref_manager;
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddStrong();
+				this->m_ref_manager->add_strong();
 			}
 			return *this;
 		}
-		SharedPtr<T>& operator=(SharedPtr<T>&& other) noexcept
+		shared_ptr<T>& operator=(shared_ptr<T>&& other) noexcept
 		{
-			this->m_RefManager = other.m_RefManager;
-			other.m_RefManager = nullptr;
+			this->m_ref_manager = other.m_ref_manager;
+			other.m_ref_manager = nullptr;
 			return *this;
 		}
 
-		WeakPtr<T> GetWeak()
+		weak_ptr<T> get_weak()
 		{
-			return WeakPtr<T>(*this);
+			return weak_ptr<T>(*this);
 		}
 	};
 
 	template<typename T>
-	class WeakPtr final : public BasePtr<T>
+	class weak_ptr final : public base_ptr<T>
 	{
 	public:
-		WeakPtr() : BasePtr<T>() {}
-		WeakPtr(WeakPtr<T> const& other) : BasePtr<T>(other.m_RefManager)
+		weak_ptr() : base_ptr<T>() {}
+		explicit weak_ptr(shared_ptr<T> const& sptr) : base_ptr<T>(sptr.m_ref_manager)
 		{
-			if (this == &other || !this->m_RefManager)
+			if (this->m_ref_manager)
+			{
+				this->m_ref_manager->add_weak();
+			}
+		}	
+		weak_ptr(weak_ptr<T> const& other) : base_ptr<T>(other.m_ref_manager)
+		{
+			if (this == &other || !this->m_ref_manager)
 			{
 				return;
 			}
-			this->m_RefManager->AddWeak();
+			this->m_ref_manager->add_weak();
 		}
-		WeakPtr(WeakPtr<T>&& other) noexcept : BasePtr<T>(other.m_RefManager)
+		weak_ptr(weak_ptr<T>&& other) noexcept : base_ptr<T>(other.m_ref_manager)
 		{
-			other.m_RefManager = nullptr;
-			if (this->m_RefManager)
+			other.m_ref_manager = nullptr;
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddWeak();
+				this->m_ref_manager->add_weak();
 			}
 		}
-		explicit WeakPtr(SharedPtr<T> const& sptr) : BasePtr<T>(sptr.m_RefManager)
+		~weak_ptr() override
 		{
-			if (this->m_RefManager)
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddWeak();
-			}
-		}
-		~WeakPtr() override
-		{
-			if (this->m_RefManager)
-			{
-				this->m_RefManager->RemoveWeak();
+				this->m_ref_manager->remove_weak();
 			}
 		}
 
-		WeakPtr<T>& operator=(WeakPtr<T> const& other)
+		weak_ptr<T>& operator=(weak_ptr<T> const& other)
 		{
 			if (this == &other) return *this;
-			this->m_RefManager = other.m_RefManager;
-			if (this->m_RefManager)
+			this->m_ref_manager = other.m_ref_manager;
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddWeak();
+				this->m_ref_manager->add_weak();
 			}
 			return *this;
 		}
-		WeakPtr<T>& operator=(WeakPtr<T>&& other) noexcept
+		weak_ptr<T>& operator=(weak_ptr<T>&& other) noexcept
 		{
-			this->m_RefManager = other.m_RefManager;
-			other.m_RefManager = nullptr;
-			if (this->m_RefManager)
+			this->m_ref_manager = other.m_ref_manager;
+			other.m_ref_manager = nullptr;
+			if (this->m_ref_manager)
 			{
-				this->m_RefManager->AddWeak();
+				this->m_ref_manager->add_weak();
 			}
 			return *this;
 		}
 
-		SharedPtr<T> TryLock()
+		shared_ptr<T> try_lock()
 		{
-			if (!this->m_RefManager || !this->m_RefManager->IsValid())
+			if (!this->m_ref_manager || !this->m_ref_manager->is_valid())
 			{
-				return SharedPtr<T>{};
+				return shared_ptr<T>{};
 			}
 
-			return SharedPtr<T>{this->m_RefManager};
+			return shared_ptr<T>{this->m_ref_manager};
 		}
 	};
 }

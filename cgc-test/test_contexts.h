@@ -1,5 +1,5 @@
 #pragma once
 
-struct TestStruct
+struct test_struct
 {
 };

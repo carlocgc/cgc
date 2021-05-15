@@ -6,47 +6,77 @@
 
 TEST(SharedPtr, DefaultConstruction)
 {
-	const Cgc::SharedPtr<TestStruct> ptr{};
-	ASSERT_FALSE(ptr) << "SharedPtr not null when default constructed";
+	const cgc::shared_ptr<test_struct> ptr{};
+	ASSERT_FALSE(ptr) << "shared_ptr not null when default constructed";
 }
 TEST(SharedPtr, PointerConstruction)
 {
-	const Cgc::SharedPtr<TestStruct> ptr{ new TestStruct{} };
-	ASSERT_TRUE(ptr) << "SharedPtr not valid when constructed with a pointer";
+	const cgc::shared_ptr<test_struct> ptr{ new test_struct{} };
+	ASSERT_TRUE(ptr) << "shared_ptr not valid when constructed with a pointer";
 }
 
 TEST(SharedPtr, MoveConstruction)
 {
-	Cgc::SharedPtr<TestStruct> ptr;
-	EXPECT_FALSE(ptr) << "SharedPtr not null when default constructed";
+	cgc::shared_ptr<test_struct> ptr;
+	EXPECT_FALSE(ptr) << "shared_ptr not null when default constructed";
 
-	ptr = Cgc::SharedPtr<TestStruct>{ new TestStruct{} };
-	ASSERT_TRUE(ptr) << "SharedPtr not valid when move constructed";
+	ptr = cgc::shared_ptr<test_struct>{ new test_struct{} };
+	ASSERT_TRUE(ptr) << "shared_ptr not valid when move constructed";
 }
 
 TEST(SharedPtr, CopyConstruction)
 {
-	Cgc::SharedPtr<TestStruct> ptr{ new TestStruct{} };
+	cgc::shared_ptr<test_struct> ptr{ new test_struct{} };
 	EXPECT_TRUE(ptr);
 
-	Cgc::SharedPtr<TestStruct> ptr_b{ ptr };
-	ASSERT_TRUE(ptr_b) << "SharedPtr not valid when copy constructed";	
+	cgc::shared_ptr<test_struct> ptr_b{ ptr };
+	ASSERT_TRUE(ptr_b) << "shared_ptr not valid when copy constructed";	
 }
 
 TEST(SharedPtr, GetWeakIsNull)
 {
-	Cgc::SharedPtr<TestStruct> sptr{};
+	cgc::shared_ptr<test_struct> sptr{};
 
-	auto wptr = sptr.GetWeak();
+	auto wptr = sptr.get_weak();
 
-	ASSERT_FALSE(wptr.TryLock());
+	ASSERT_FALSE(wptr.try_lock());
 }
 
 TEST(SharedPtr, GetWeakNotNull)
 {
-	Cgc::SharedPtr<TestStruct> sptr{ new TestStruct() };
+	cgc::shared_ptr<test_struct> sptr{ new test_struct() };
 
-	auto wptr = sptr.GetWeak();
+	auto wptr = sptr.get_weak();
 
-	ASSERT_TRUE(wptr.TryLock());
+	ASSERT_TRUE(wptr.try_lock());
+}
+
+TEST(SharedPtr, AreEqual)
+{
+	cgc::shared_ptr<test_struct> sptr_a{ new test_struct{} };
+	EXPECT_TRUE(sptr_a) << "shared_ptr not valid when constructed with a pointer";	
+
+	ASSERT_TRUE(sptr_a == sptr_a);
+}
+
+TEST(SharedPtr, AreEqualAfterCopy)
+{
+	cgc::shared_ptr<test_struct> sptr_a{ new test_struct{} };
+	EXPECT_TRUE(sptr_a) << "shared_ptr not valid when constructed with a pointer";
+
+	cgc::shared_ptr<test_struct> sptr_b = sptr_a;
+	EXPECT_TRUE(sptr_a) << "shared_ptr not valid when constructed with a pointer";
+
+	ASSERT_TRUE(sptr_a == sptr_b);
+}
+
+TEST(SharedPtr, AreNotEqual)
+{
+	cgc::shared_ptr<test_struct> sptr_a{ new test_struct{} };
+	EXPECT_TRUE(sptr_a) << "shared_ptr not valid when constructed with a pointer";
+
+	cgc::shared_ptr<test_struct> sptr_b{ new test_struct{} };
+	EXPECT_TRUE(sptr_b) << "shared_ptr not valid when constructed with a pointer";
+
+	ASSERT_TRUE(sptr_a != sptr_b);
 }
